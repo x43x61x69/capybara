@@ -1,0 +1,22 @@
+[package]
+name = "h717-core"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-only"
+
+[lib]
+crate-type = ["rlib", "staticlib"]
+
+[features]
+default = ["embedded"]
+embedded = []
+recomp = ["embedded"]
+
+[dependencies]
+serde = { version = "1.0", default-features = false, features = ["derive", "alloc"] }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"

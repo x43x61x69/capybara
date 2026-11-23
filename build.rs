@@ -1,4 +1,6 @@
 fn main() {
+    // Shared modules also compile in the standalone no_std H717 core.
+    println!("cargo:rustc-check-cfg=cfg(feature, values(\"embedded\"))");
     println!("cargo:rerun-if-changed=assets/capybara.ico");
     #[cfg(windows)]
     {

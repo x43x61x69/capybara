@@ -1,3 +1,8 @@
+use alloc::vec::Vec;
+#[cfg(not(feature = "embedded"))]
+pub mod flash;
+#[cfg(feature = "embedded")]
+#[path = "../../../ports/h717/core/src/flash.rs"]
 pub mod flash;
 pub mod pram;
 pub mod rom;
@@ -10,7 +15,7 @@ pub use sram::InternalSram;
 
 use crate::emulator::cpu::nvic::Nvic;
 use crate::emulator::peripherals::Peripherals;
-use std::collections::BTreeMap;
+use alloc::collections::BTreeMap;
 
 /// Carte memoire du SNC7340, datasheet V1.7 section 4.
 pub mod map {
@@ -295,7 +300,7 @@ impl MmioTrace {
             .iter()
             .map(|(a, s)| (*a, periph::name_of(*a & !0xFFF), *s))
             .collect();
-        v.sort_by_key(|(_, _, s)| std::cmp::Reverse(s.reads + s.writes));
+        v.sort_by_key(|(_, _, s)| core::cmp::Reverse(s.reads + s.writes));
         v.truncate(count);
         v
     }
@@ -307,7 +312,7 @@ impl MmioTrace {
             .iter()
             .map(|(a, s)| (*a, periph::name_of(*a & !0xFFF), *s))
             .collect();
-        v.sort_by_key(|(_, _, s)| std::cmp::Reverse(s.reads + s.writes));
+        v.sort_by_key(|(_, _, s)| core::cmp::Reverse(s.reads + s.writes));
         v.truncate(count);
         v
     }
@@ -451,12 +456,26 @@ impl MemoryBus {
     /// qui ne coute rien et n'a aucun effet de bord dans ces deux memoires.
     #[inline(always)]
     pub fn fetch_pair(&self, addr: u32, periph: &Peripherals) -> Option<(u16, u16)> {
+        #[cfg(feature = "embedded")]
+        if (map::ICACHE_BASE..map::ICACHE_END).contains(&addr) {
+            let offset = periph.xip.flash_offset(addr - map::ICACHE_BASE);
+            if offset.checked_add(4)? > self.flash.size {
+                return None;
+            }
+            let word = self.flash.read_u32(offset);
+            return Some((word as u16, (word >> 16) as u16));
+        }
         let quatre: &[u8] = if addr < map::PRAM_END {
             let i = addr as usize;
             self.pram.data.get(i..i + 4)?
         } else if (map::ICACHE_BASE..map::ICACHE_END).contains(&addr) {
+            #[cfg(not(feature = "embedded"))]
+            {
             let o = periph.xip.flash_offset(addr - map::ICACHE_BASE);
             self.flash.data.get(o..o + 4)?
+            }
+            #[cfg(feature = "embedded")]
+            { return None; }
         } else {
             return None;
         };
@@ -479,8 +498,13 @@ impl MemoryBus {
             }
         } else if (map::ICACHE_BASE..map::ICACHE_END).contains(&addr) {
             let o = periph.xip.flash_offset(addr - map::ICACHE_BASE);
+            #[cfg(not(feature = "embedded"))]
             if o + 1 < self.flash.data.len() {
                 return u16::from_le_bytes([self.flash.data[o], self.flash.data[o + 1]]);
+            }
+            #[cfg(feature = "embedded")]
+            if o.checked_add(2).is_some_and(|end| end <= self.flash.size) {
+                return self.flash.read_u16(o);
             }
         }
         // La memoire vive est la zone de donnees du jeu : chaque LDRH y passait
@@ -520,6 +544,7 @@ impl MemoryBus {
         self.write_u8(addr + 1, ((val >> 8) & 0xFF) as u8, periph, nvic);
     }
 
+    #[cfg_attr(target_arch = "xtensa", link_section = ".iram1.h717_read_u32")]
     pub fn read_u32(&mut self, addr: u32, periph: &mut Peripherals, nvic: &Nvic) -> u32 {
         // Chemin rapide des deux memoires. Le mot est la largeur courante d'un
         // programme ARM, et le chemin general finissait par quatre lectures
@@ -564,6 +589,7 @@ impl MemoryBus {
         b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)
     }
 
+    #[cfg_attr(target_arch = "xtensa", link_section = ".iram1.h717_write_u32")]
     pub fn write_u32(&mut self, addr: u32, val: u32, periph: &mut Peripherals, nvic: &mut Nvic) {
         // Meme raison qu'en lecture : la memoire vive n'a ni alias bit-band ni
         // effet de bord, et c'est la qu'atterrit la quasi totalite des mots
@@ -745,6 +771,7 @@ impl MemoryBus {
         let page = addr & !0xFFF;
         let off = addr & 0xFFF;
         match page {
+            #[cfg(not(feature = "embedded"))]
             0x4002_9000 => p.crypto.read_reg(off),
             0x4000_7000 if off < 0x40 => p.timers.read_buzzer_reg(off),
             periph::CHECKSUM => p.crc.read_reg(off),
@@ -801,6 +828,7 @@ impl MemoryBus {
         let page = addr & !0xFFF;
         let off = addr & 0xFFF;
         match page {
+            #[cfg(not(feature = "embedded"))]
             0x4002_9000 => {
                 if let Some((source, destination, length, mut key)) = p.crypto.write_reg(off, val) {
                     let offset = |addr: u32| addr.checked_sub(map::SRAM_BASE).map(|n| n as usize);

@@ -1,3 +1,4 @@
+use alloc::{vec, vec::Vec};
 /// RAM programme (PRAM) mappee a 0x00000000.
 ///
 /// Le bootrom y recopie le code utilisateur dechiffre depuis la flash, puis

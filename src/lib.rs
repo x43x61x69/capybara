@@ -1,3 +1,5 @@
+extern crate alloc;
+
 pub mod app;
 pub mod demarrage;
 pub mod audio;

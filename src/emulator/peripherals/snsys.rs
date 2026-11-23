@@ -1,4 +1,5 @@
-use std::collections::BTreeMap;
+use alloc::vec::Vec;
+use alloc::collections::BTreeMap;
 
 /// Nombre de cycles du coeur pour une seconde reelle.
 ///

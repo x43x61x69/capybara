@@ -1,4 +1,5 @@
-use std::collections::VecDeque;
+use alloc::vec::Vec;
+use alloc::collections::VecDeque;
 
 /// Controleur USB officiel Sonix SNC73410 (`0x40007000`).
 ///

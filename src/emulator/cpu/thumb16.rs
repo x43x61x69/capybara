@@ -14,6 +14,7 @@ pub enum StepResult {
 pub struct Thumb16;
 
 impl Thumb16 {
+    #[cfg_attr(target_arch = "xtensa", link_section = ".iram1.h717_thumb16")]
     pub fn execute(
         w: u16,
         regs: &mut Registers,

@@ -212,7 +212,7 @@ fn install_boot_info(bus: &mut MemoryBus, table: &crate::emulator::sonix::LoadTa
 ///
 /// Deux sources, dans l'ordre : la variable d'environnement `SONIX_DEVICE_KEY`,
 /// puis un fichier `<dump>.key` contenant la valeur en hexadecimal.
-fn resolve_device_key(path: &Path) -> Option<u32> {
+pub fn resolve_device_key(path: &Path) -> Option<u32> {
     fn parse(s: &str) -> Option<u32> {
         let s = s.trim();
         let s = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")).unwrap_or(s);

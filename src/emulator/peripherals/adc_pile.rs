@@ -59,7 +59,7 @@ impl Default for AdcPile {
         Self {
             ctrl: 0,
             commande: 0,
-            echantillon: std::env::var("SONIX_PILE")
+            echantillon: super::configuration("SONIX_PILE")
                 .ok()
                 .and_then(|v| u32::from_str_radix(v.trim_start_matches("0x"), 16).ok())
                 .unwrap_or(PILE_PLEINE),

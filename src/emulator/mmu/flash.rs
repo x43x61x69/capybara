@@ -1,3 +1,4 @@
+use alloc::{vec, vec::Vec};
 pub struct SpiFlash {
     pub data: Vec<u8>,
     pub size: usize,
@@ -8,7 +9,7 @@ pub struct SpiFlash {
     pub reference: Vec<u8>,
     /// Pages de 4 Ko ecrites depuis le chargement. Le jeu n'en salit qu'une
     /// poignee, celles de sa sauvegarde.
-    pub pages_salies: std::collections::BTreeSet<usize>,
+    pub pages_salies: alloc::collections::BTreeSet<usize>,
     /// Compteur d'ecritures. Il ne sert pas au modele : il permet a l'interface
     /// de savoir que la sauvegarde du jeu a bouge, et de la recopier sur le
     /// disque, sans comparer seize mega-octets a chaque image.
@@ -27,7 +28,7 @@ impl SpiFlash {
             data: vec![0xFF; size],
             size,
             reference: Vec::new(),
-            pages_salies: std::collections::BTreeSet::new(),
+            pages_salies: alloc::collections::BTreeSet::new(),
             revision: 0,
         }
     }

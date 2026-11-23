@@ -1,5 +1,6 @@
 pub mod adc;
 pub mod crc;
+#[cfg(not(feature = "embedded"))]
 pub mod crypto;
 pub mod display;
 pub mod flashctl;
@@ -50,6 +51,7 @@ pub struct Peripherals {
     pub adc: [SarAdc; 2],
     pub flashctl: FlashController,
     pub crc: ChecksumUnit,
+    #[cfg(not(feature = "embedded"))]
     #[serde(default)]
     pub crypto: crypto::Crypto,
     pub adc_pile: AdcPile,
@@ -81,6 +83,7 @@ impl Default for Peripherals {
             adc: Default::default(),
             flashctl: FlashController::default(),
             crc: ChecksumUnit::default(),
+            #[cfg(not(feature = "embedded"))]
             crypto: crypto::Crypto::default(),
             adc_pile: AdcPile::default(),
             tic: TicSysteme::default(),
@@ -93,4 +96,12 @@ impl Default for Peripherals {
             usb: UsbController::default(),
         }
     }
+}
+
+/// Optional host-only diagnostic overrides; embedded builds use hardware defaults.
+fn configuration(name: &str) -> Result<alloc::string::String, ()> {
+    #[cfg(not(feature = "embedded"))]
+    { std::env::var(name).map_err(|_| ()) }
+    #[cfg(feature = "embedded")]
+    { let _ = name; Err(()) }
 }

@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 /// Controleur de la flash SPI NOR externe, base 0x40022000.
 ///
 /// Deduit du journal des acces du firmware. Deux fonctions distinctes :
@@ -115,7 +116,7 @@ impl Default for FlashController {
             command: 0,
             index: 0,
             // Surchargeable pour balayer les candidats sans recompiler.
-            reponse: std::env::var("SONIX_FLASH_ID")
+            reponse: super::configuration("SONIX_FLASH_ID")
                 .ok()
                 .and_then(|v| u32::from_str_radix(v.trim_start_matches("0x"), 16).ok())
                 .unwrap_or(MX25L12835F_REMS),

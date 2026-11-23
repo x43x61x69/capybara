@@ -1,3 +1,4 @@
+use alloc::{vec, vec::Vec};
 pub struct InternalSram {
     pub data: Vec<u8>,
     pub mailbox: Vec<u8>,

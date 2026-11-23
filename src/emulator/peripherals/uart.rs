@@ -1,4 +1,7 @@
-use std::collections::VecDeque;
+use alloc::{string::String, vec::Vec};
+#[cfg(test)]
+use alloc::vec;
+use alloc::collections::VecDeque;
 
 /// Capacite des files materielles d'emission et de reception.
 pub const UART_FIFO_DEPTH: usize = 16;

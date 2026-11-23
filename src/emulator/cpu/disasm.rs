@@ -1,3 +1,4 @@
+use alloc::{format, string::{String, ToString}, vec, vec::Vec};
 #[derive(Debug, Clone)]
 pub struct DisassembledInst {
     pub address: u32,

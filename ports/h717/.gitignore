@@ -1,0 +1,5 @@
+/local/
+/core/target/
+/firmware/.pio/
+/firmware/lib/h717-core/
+__pycache__/

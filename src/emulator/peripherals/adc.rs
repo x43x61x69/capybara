@@ -36,7 +36,7 @@ impl Default for SarAdc {
         Self {
             channel: 0,
             converted: false,
-            valeur: std::env::var("SONIX_ADC")
+            valeur: super::configuration("SONIX_ADC")
                 .ok()
                 .and_then(|v| u32::from_str_radix(v.trim_start_matches("0x"), 16).ok())
                 .unwrap_or(PILE_PLEINE),

@@ -1,3 +1,5 @@
+use alloc::{vec, vec::Vec};
+#[cfg(not(feature = "embedded"))]
 use egui::Color32;
 
 pub const LCD_WIDTH: usize = 128;
@@ -205,6 +207,7 @@ impl DisplayController {
         }
     }
 
+    #[cfg(not(feature = "embedded"))]
     pub fn get_rgba_buffer(&self) -> Vec<Color32> {
         let mut pixels = Vec::with_capacity(self.width * self.height);
         for &raw in &self.vram {

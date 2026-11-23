@@ -63,6 +63,9 @@ impl Cpu {
         self.regs.pc = pc & !1; // Clear Thumb bit for address
     }
 
+    // The H717 executes from SPI flash and also reads guest data from PSRAM.
+    // Keep the interpreter's hot dispatch path in on-chip instruction RAM.
+    #[cfg_attr(target_arch = "xtensa", link_section = ".iram1.h717_cpu_step")]
     pub fn step(&mut self, bus: &mut MemoryBus, periph: &mut Peripherals) -> StepResult {
         if self.nvic.reset_requested {
             // Paramix replaces PRAM before requesting a system reset. Boot the
@@ -215,6 +218,78 @@ impl Cpu {
             self.cycles_en_attente = 0;
             self.entretenir_peripheriques(elapsed, periph);
         }
+    }
+
+    #[cfg(feature = "embedded")]
+    pub fn can_run_block(&self, cycles: u32, periph: &Peripherals) -> bool {
+        !self.is_halted
+            && !self.nvic.reset_requested
+            && self.regs.itstate == 0
+            && !periph.snsys.reveil_demande
+            && !periph.dma.irq_a_lever
+            && !(self.nvic.en_attente && self.regs.mode == Mode::Thread && self.regs.primask == 0)
+            && self.cycles_en_attente + cycles < Self::GRAIN_PERIPHERIQUES
+    }
+
+    /// Execute complete iterations of the PRAM `SUBS r0, r0, #1; NOP;
+    /// BPL` countdown. Use the regular interpreter at peripheral tick boundaries.
+    #[cfg(feature = "embedded")]
+    pub fn step_countdown(
+        &mut self,
+        bus: &mut MemoryBus,
+        periph: &mut Peripherals,
+        budget: u32,
+    ) -> u32 {
+        let pc = self.regs.pc;
+        let offset = pc as usize;
+        if budget < 3 || pc == 0 || pc >= crate::emulator::mmu::PRAM_SIZE as u32
+            || bus.pram.data.get(offset..offset + 6) != Some(&[0x40, 0x1e, 0x00, 0xbf, 0xfc, 0xd5])
+        {
+            return 0;
+        }
+
+        let mut steps = 0;
+        while budget - steps >= 3 && self.regs.pc == pc {
+            if self.is_halted || self.nvic.reset_requested || self.regs.itstate != 0
+                || periph.snsys.reveil_demande || periph.dma.irq_a_lever
+                || (self.nvic.en_attente && self.regs.mode == Mode::Thread && self.regs.primask == 0)
+            {
+                break;
+            }
+
+            let counter = self.regs.r[0];
+            if counter == 0 || counter > i32::MAX as u32 {
+                break;
+            }
+            // Taken iterations cost 1 + 1 + 2 cycles. Leave the instruction
+            // that crosses the next peripheral boundary to the interpreter.
+            let before_tick = (Self::GRAIN_PERIPHERIQUES - 1 - self.cycles_en_attente) / 4;
+            let rounds = counter.min(before_tick).min((budget - steps) / 3);
+            if rounds != 0 {
+                let remaining = counter - rounds;
+                self.regs.r[0] = remaining;
+                self.regs.set_nz(remaining);
+                self.regs.set_flag_c(true);
+                self.regs.set_flag_v(false);
+                self.cycles += u64::from(rounds * 4);
+                self.cycles_en_attente += rounds * 4;
+                bus.current_pc = pc + 4;
+                steps += rounds * 3;
+            } else {
+                for instruction in 0..3 {
+                    if self.regs.pc != pc + instruction * 2 || periph.snsys.reveil_demande
+                        || (self.nvic.en_attente && self.regs.mode == Mode::Thread && self.regs.primask == 0)
+                    {
+                        return steps;
+                    }
+                    if !matches!(self.step(bus, periph), StepResult::Ok(_)) {
+                        return steps;
+                    }
+                    steps += 1;
+                }
+            }
+        }
+        steps
     }
 
     /// Fait avancer tout ce qui vit au rythme des cycles.

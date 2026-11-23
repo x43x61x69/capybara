@@ -209,22 +209,30 @@ impl Machine {
         self.last_stop = None;
     }
 
-    /// The supported My Lab bootloader calls a set of block-device callbacks.
-    /// Supply a card at that interface so FatFs and update parsing remain native.
+    /// Supply a card to the supported My Lab bootloader and game at their
+    /// block-device interfaces. FatFs and the update checks run in firmware.
     fn step_my_lab_card(&mut self) -> Option<StepResult> {
         let card = self.my_lab_card.as_mut()?;
         let pc = self.cpu.regs.pc;
-        if !self.periph.display.my_lab || !self.periph.xip.is_enabled()
-            || self.periph.xip.base != 0x6001_1000
-        {
+        if !self.periph.display.my_lab || !self.periph.xip.is_enabled() {
             return None;
         }
-        let signature: &[u8] = match pc {
-            0x1000_9110 => &[0x80, 0xb5, 0x84, 0xb0, 0x03, 0x90, 0x02, 0x91, 0x03, 0x98, 0x01, 0x28],
-            0x1000_914c => &[0x00, 0x20, 0x70, 0x47, 0x80, 0xb5, 0x82, 0xb0],
-            0x1000_9150 => &[0x80, 0xb5, 0x82, 0xb0, 0x03, 0xf0, 0x94, 0xff, 0x20, 0xb9],
-            0x1000_9178 => &[0x80, 0xb5, 0x84, 0xb0, 0x03, 0x90, 0x02, 0x91, 0x01, 0x92],
-            0x1000_9194 => &[0x80, 0xb5, 0x84, 0xb0, 0x03, 0x90, 0x02, 0x91, 0x01, 0x92],
+        #[derive(Clone, Copy)]
+        enum BlockCall { Ioctl, Ready, Read, Write }
+        use BlockCall::*;
+        let (call, signature): (BlockCall, &[u8]) = match (self.periph.xip.base, pc) {
+            (0x6001_1000, 0x1000_9110) | (0x6011_1000, 0x1000_f348) =>
+                (Ioctl, &[0x80, 0xb5, 0x84, 0xb0, 0x03, 0x90, 0x02, 0x91, 0x03, 0x98, 0x01, 0x28]),
+            (0x6001_1000, 0x1000_914c) =>
+                (Ready, &[0x00, 0x20, 0x70, 0x47, 0x80, 0xb5, 0x82, 0xb0]),
+            (0x6001_1000, 0x1000_9150) =>
+                (Ready, &[0x80, 0xb5, 0x82, 0xb0, 0x03, 0xf0, 0x94, 0xff, 0x20, 0xb9]),
+            (0x6011_1000, 0x1000_f388) =>
+                (Ready, &[0x80, 0xb5, 0x82, 0xb0, 0x0e, 0xf0, 0x38, 0xfc, 0x20, 0xb9]),
+            (0x6001_1000, 0x1000_9178) | (0x6011_1000, 0x1000_f3b0) =>
+                (Read, &[0x80, 0xb5, 0x84, 0xb0, 0x03, 0x90, 0x02, 0x91, 0x01, 0x92]),
+            (0x6001_1000, 0x1000_9194) =>
+                (Write, &[0x80, 0xb5, 0x84, 0xb0, 0x03, 0x90, 0x02, 0x91, 0x01, 0x92]),
             _ => return None,
         };
         let start = self.periph.xip.flash_offset(pc - 0x1000_0000);
@@ -237,8 +245,8 @@ impl Machine {
         let r1 = regs.get_reg(1);
         let r2 = regs.get_reg(2);
         let offset = r0.checked_sub(mmu::map::SRAM_BASE).map(|n| n as usize);
-        let status = match pc {
-            0x1000_9110 if r0 == 1 => {
+        let status = match call {
+            Ioctl if r0 == 1 => {
                 let target = r1.checked_sub(mmu::map::SRAM_BASE).map(|n| n as usize);
                 if let Some(out) = target.and_then(|i| self.bus.sram.data.get_mut(i..i + 8)) {
                     out.copy_from_slice(&u64::from(card.sector_count()).to_le_bytes());
@@ -247,8 +255,8 @@ impl Machine {
                     255
                 }
             }
-            0x1000_914c | 0x1000_9150 => 0,
-            0x1000_9178 => {
+            Ready => 0,
+            Read => {
                 let length = (r2 as usize).checked_mul(512);
                 let out = offset.zip(length).and_then(|(i, n)| self.bus.sram.data.get_mut(i..i.saturating_add(n)));
                 if out.is_some_and(|out| card.read(r1, out)) { 0 } else { 255 }
@@ -886,7 +894,8 @@ impl Machine {
         // This region is in cleartext and survives filename and save changes.
         const MY_LAB_DRIVER: &[u8] = &[0x81, 0xb0, 0x49, 0xf2, 0x04, 0x00, 0xc4, 0xf2,
             0x02, 0x00, 0x00, 0x68, 0x18, 0xb1, 0xff, 0xe7];
-        let my_lab = self.bus.flash.data.get(0x11000..0x11000 + MY_LAB_DRIVER.len()) == Some(MY_LAB_DRIVER);
+        let my_lab = self.bus.flash.data.get(0x11000..0x11000 + MY_LAB_DRIVER.len()) == Some(MY_LAB_DRIVER)
+            && self.bus.flash.data.get(0x19D100..0x19D108) != Some(b"PXMLABP1");
         use crate::emulator::peripherals::gpio_port::{TE_PIN, TE_DEMI_PERIODE};
         self.periph.port1.periodique = Some((if my_lab { 12 } else { TE_PIN }, TE_DEMI_PERIODE));
         self.periph.display = if my_lab {

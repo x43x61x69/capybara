@@ -7,6 +7,7 @@ use crate::emulator::peripherals::Peripherals;
 pub struct Thumb32;
 
 impl Thumb32 {
+    #[cfg_attr(target_arch = "xtensa", link_section = ".iram1.h717_thumb32")]
     pub fn execute(
         w1: u16,
         w2: u16,

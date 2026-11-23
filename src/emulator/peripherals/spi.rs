@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use alloc::collections::VecDeque;
 
 /// Controleur SPI0 officiel Sonix `SN_SPI_Type` (`0x4000E000`).
 ///

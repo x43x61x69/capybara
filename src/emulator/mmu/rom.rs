@@ -1,3 +1,4 @@
+use alloc::{vec, vec::Vec};
 pub struct BootRom {
     pub data: Vec<u8>,
     pub is_hidden: bool,

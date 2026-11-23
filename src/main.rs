@@ -1,5 +1,7 @@
 #![windows_subsystem = "windows"]
 
+extern crate alloc;
+
 mod app;
 mod audio;
 mod capture;

@@ -16,7 +16,7 @@ pub struct TicSysteme {
 
 impl Default for TicSysteme {
     fn default() -> Self {
-        let (irq, periode) = std::env::var("SONIX_TIC")
+        let (irq, periode) = super::configuration("SONIX_TIC")
             .ok()
             .and_then(|v| {
                 let (a, b) = v.split_once(':')?;
